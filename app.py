@@ -15,6 +15,10 @@ st.title("🤖 NEXUS — Agente Inteligente")
 st.caption("Powered by LangGraph + Groq | Con memoria de conversación")
 
 col1, col2 = st.columns([6, 1])
+with col1:
+    if len(st.session_state.get('historial_visual', [])) > 0:
+        total = len(st.session_state.historial_visual) // 2
+        st.caption(f"💬 {total} mensaje{'s' if total != 1 else ''}")
 with col2:
     if st.button("🗑️ Nueva"):
         st.session_state.historial_visual = []
