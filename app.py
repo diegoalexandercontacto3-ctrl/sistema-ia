@@ -14,6 +14,13 @@ st.set_page_config(page_title="NEXUS — Agente IA", page_icon="🤖", layout="c
 st.title("🤖 NEXUS — Agente Inteligente")
 st.caption("Powered by LangGraph + Groq | Con memoria de conversación")
 
+col1, col2 = st.columns([6, 1])
+with col2:
+    if st.button("🗑️ Nueva"):
+        st.session_state.historial_visual = []
+        st.session_state.historial_llm = []
+        st.rerun()
+
 buscador = DuckDuckGoSearchRun()
 llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.7)
 
