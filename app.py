@@ -128,7 +128,7 @@ if entrada := st.chat_input('¿En qué puedo ayudarte?'):
     st.session_state.historial_visual.append({'rol': 'user', 'texto': entrada})
 
     with st.chat_message('assistant'):
-        with st.spinner('Consultando...'):
+        with st.spinner('🧠 Analizando tu consulta...'):
             resultado = agente.invoke({
                 'mensaje': entrada,
                 'tipo': '',
@@ -136,16 +136,16 @@ if entrada := st.chat_input('¿En qué puedo ayudarte?'):
                 'respuesta': '',
                 'historial': st.session_state.historial_llm
             })
-            respuesta = resultado['respuesta']
-            tipo = resultado['tipo']
-            st.write(respuesta)
-            
-            if 'queja' in tipo:
-                st.caption("⚠️ Queja detectada — respuesta empática activada")
-            elif 'busqueda' in tipo:
-                st.caption("🔍 Búsqueda web realizada")
-            else:
-                st.caption("💬 Consulta respondida")
+        respuesta = resultado['respuesta']
+        tipo = resultado['tipo']
+        st.write(respuesta)
+
+        if 'queja' in tipo:
+            st.caption("⚠️ Queja detectada — respuesta empática activada")
+        elif 'busqueda' in tipo:
+            st.caption("🔍 Búsqueda web realizada")
+        else:
+            st.caption("💬 Consulta respondida")
 
     st.session_state.historial_visual.append({'rol': 'assistant', 'texto': respuesta})
     st.session_state.historial_llm.append(HumanMessage(content=entrada))
