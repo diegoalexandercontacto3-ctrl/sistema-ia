@@ -1,4 +1,3 @@
-# app.py — NEXUS con memoria de conversación
 import os
 from dotenv import load_dotenv
 from typing import TypedDict, List
@@ -10,9 +9,32 @@ import streamlit as st
 
 load_dotenv()
 
-st.set_page_config(page_title="NEXUS — Agente IA", page_icon="🤖", layout="centered")
-st.title("🤖 NEXUS — Agente Inteligente")
-st.caption("Powered by LangGraph + Groq | Con memoria de conversación")
+NEGOCIO = {
+    "nombre": "Mi Tienda Demo",
+    "rubro": "comercio minorista",
+    "horarios": "Lunes a Viernes 9-18hs, Sábados 9-13hs",
+    "telefono": "+54 11 1234-5678",
+    "politica_cambios": "Cambios dentro de los 30 días con ticket de compra",
+    "agente_nombre": "NEXUS"
+}
+
+SISTEMA_BASE = f"""Sos {NEGOCIO['agente_nombre']}, el asistente virtual de {NEGOCIO['nombre']}.
+Trabajás para ayudar a los clientes de este {NEGOCIO['rubro']}.
+
+Información del negocio:
+- Horarios: {NEGOCIO['horarios']}
+- Teléfono: {NEGOCIO['telefono']}
+- Política de cambios: {NEGOCIO['politica_cambios']}
+
+Reglas:
+- Siempre respondé en español, de forma amable y profesional
+- Si no sabés algo del negocio, decí que lo vas a consultar y dejá el teléfono
+- Nunca inventés información sobre productos o precios
+- Si el cliente está enojado, primero disculpate y luego ofrecé soluciones"""
+
+st.set_page_config(page_title=f"{NEGOCIO['agente_nombre']} — Asistente Virtual", page_icon="🤖", layout="centered")
+st.title(f"🤖 {NEGOCIO['agente_nombre']} — Asistente de {NEGOCIO['nombre']}")
+st.caption(f"Asistente virtual especializado | {NEGOCIO['horarios']}")
 
 col1, col2 = st.columns([6, 1])
 with col1:
@@ -46,21 +68,21 @@ def buscar_web(estado: Estado):
     return {'busqueda': resultado}
 
 def responder_consulta(estado: Estado):
-    mensajes = [SystemMessage(content="Sos un asistente profesional. Respondé en español. Recordás toda la conversación anterior.")]
+    mensajes = [SystemMessage(content=SISTEMA_BASE)]
     mensajes += estado['historial']
     mensajes.append(HumanMessage(content=estado['mensaje']))
     resultado = llm.invoke(mensajes)
     return {'respuesta': resultado.content}
 
 def responder_con_busqueda(estado: Estado):
-    mensajes = [SystemMessage(content="Respondé usando la información encontrada. En español.")]
+    mensajes = [SystemMessage(content=SISTEMA_BASE)]
     mensajes += estado['historial']
-    mensajes.append(HumanMessage(content=f"Pregunta: {estado['mensaje']}\n\nInfo: {estado['busqueda']}"))
+    mensajes.append(HumanMessage(content=f"Pregunta: {estado['mensaje']}\n\nInfo adicional: {estado['busqueda']}"))
     resultado = llm.invoke(mensajes)
     return {'respuesta': resultado.content}
 
 def manejar_queja(estado: Estado):
-    mensajes = [SystemMessage(content="Sos un agente empático. Disculpate y ofrecé soluciones. En español.")]
+    mensajes = [SystemMessage(content=SISTEMA_BASE + "\nATENCIÓN: El cliente está presentando una queja. Priorizá la empatía y la solución.")]
     mensajes += estado['historial']
     mensajes.append(HumanMessage(content=estado['mensaje']))
     resultado = llm.invoke(mensajes)
@@ -93,7 +115,6 @@ agente = crear_agente()
 
 if 'historial_visual' not in st.session_state:
     st.session_state.historial_visual = []
-
 if 'historial_llm' not in st.session_state:
     st.session_state.historial_llm = []
 
@@ -101,13 +122,13 @@ for mensaje in st.session_state.historial_visual:
     with st.chat_message(mensaje['rol']):
         st.write(mensaje['texto'])
 
-if entrada := st.chat_input('Escribí tu mensaje...'):
+if entrada := st.chat_input('¿En qué puedo ayudarte?'):
     with st.chat_message('user'):
         st.write(entrada)
     st.session_state.historial_visual.append({'rol': 'user', 'texto': entrada})
 
     with st.chat_message('assistant'):
-        with st.spinner('Pensando...'):
+        with st.spinner('Consultando...'):
             resultado = agente.invoke({
                 'mensaje': entrada,
                 'tipo': '',
@@ -117,7 +138,7 @@ if entrada := st.chat_input('Escribí tu mensaje...'):
             })
             respuesta = resultado['respuesta']
             st.write(respuesta)
-            
+
     st.session_state.historial_visual.append({'rol': 'assistant', 'texto': respuesta})
     st.session_state.historial_llm.append(HumanMessage(content=entrada))
-    st.session_state.historial_llm.append(AIMessage(content=respuesta)) 
+    st.session_state.historial_llm.append(AIMessage(content=respuesta))
