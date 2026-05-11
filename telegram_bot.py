@@ -119,8 +119,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     historiales[chat_id] = []
     negocios[chat_id] = None
-    await update.message.reply_text(
-        'Hola! Soy DAL.\n\nPara personalizar tu experiencia: cual es el nombre de tu negocio?'
+    await context.bot.send_photo(
+        chat_id=chat_id,
+        photo=open('dal_logo.jpg', 'rb'),
+        caption='Hola! Soy DAL — Creamos Agentes de IA.\n\nPara personalizar tu experiencia: cual es el nombre de tu negocio?'
     )
     return CONFIGURANDO
 
