@@ -40,7 +40,7 @@ def esta_abierto():
         return False, ahora
 
 def get_sistema_base(negocio):
-    return f"""Sos NEXUS, el asistente virtual de {negocio}.
+    return f"""Sos DAL, el asistente virtual de {negocio}.
 Trabajas para ayudar a los clientes de este negocio.
 Informacion del negocio:
 - Horarios: Lunes a Viernes 9-18hs, Sabados 9-13hs
@@ -120,7 +120,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     historiales[chat_id] = []
     negocios[chat_id] = None
     await update.message.reply_text(
-        'Hola! Soy NEXUS.\n\nPara personalizar tu experiencia: cual es el nombre de tu negocio?'
+        'Hola! Soy DAL.\n\nPara personalizar tu experiencia: cual es el nombre de tu negocio?'
     )
     return CONFIGURANDO
 
@@ -207,5 +207,5 @@ app = ApplicationBuilder().token(os.getenv('TELEGRAM_TOKEN')).build()
 app.add_handler(conv_handler)
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
 
-print('NEXUS Telegram bot con personalidad configurable iniciado...')
+print('DAL Telegram bot con personalidad configurable iniciado...')
 app.run_polling()
