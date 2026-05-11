@@ -7,6 +7,8 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_community.tools import DuckDuckGoSearchRun
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler, ConversationHandler
+from datetime import datetime
+import pytz
 
 load_dotenv()
 
@@ -23,6 +25,19 @@ class Estado(TypedDict):
     respuesta: str
     historial: List
     sistema: str
+
+def esta_abierto():
+    zona = pytz.timezone('America/Argentina/Buenos_Aires')
+    ahora = datetime.now(zona)
+    dia = ahora.weekday()
+    hora = ahora.hour
+
+    if dia < 5:  # Lunes a Viernes
+        return hora >= 9 and hora < 18, ahora
+    elif dia == 5:  # Sabado
+        return hora >= 9 and hora < 13, ahora
+    else:  # Domingo
+        return False, ahora
 
 def get_sistema_base(negocio):
     return f"""Sos NEXUS, el asistente virtual de {negocio}.
@@ -129,7 +144,21 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     negocio = negocios.get(chat_id, 'Mi Tienda')
     sistema = get_sistema_base(negocio)
-
+    
+    abierto, ahora = esta_abierto()
+    if not abierto:
+        dia = ahora.weekday()
+        if dia == 6:
+            cuando = 'el lunes a las 9:00hs'
+        elif dia == 5 and ahora.hour >= 13:
+            cuando = 'el lunes a las 9:00hs'
+        else:
+            cuando = 'mañana a las 9:00hs'
+        await update.message.reply_text(
+            f'Hola! En este momento estamos cerrados.\n\nNuestro horario es Lunes a Viernes 9-18hs y Sabados 9-13hs.\n\nTe esperamos {cuando}. Igualmente podés dejar tu consulta y te respondemos cuando abramos.',
+            reply_markup=get_menu()
+        )
+        return
     if mensaje == '🚨 Hablar con una persona':
         await update.message.reply_text(
             'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad.',
