@@ -5,7 +5,7 @@ from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_community.tools import DuckDuckGoSearchRun
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
 
 load_dotenv()
@@ -33,6 +33,12 @@ Reglas:
 - Nunca inventes informacion sobre productos o precios
 - Si el cliente esta enojado, primero disculpate y luego ofrece soluciones
 - Si el cliente pide hablar con una persona humana o con un responsable, responde exactamente con la palabra: ESCALAR"""
+
+MENU = ReplyKeyboardMarkup([
+    [KeyboardButton('📋 Horarios'), KeyboardButton('🔄 Politica de cambios')],
+    [KeyboardButton('📞 Telefono'), KeyboardButton('💬 Hacer una consulta')],
+    [KeyboardButton('🚨 Hablar con una persona')]
+], resize_keyboard=True)
 
 buscador = DuckDuckGoSearchRun()
 llm = ChatGroq(model='llama-3.1-8b-instant', temperature=0.7)
@@ -101,9 +107,10 @@ historiales = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     historiales[update.effective_chat.id] = []
     await update.message.reply_text(
-        'Hola! Soy NEXUS, el asistente virtual de Mi Tienda Demo. Como puedo ayudarte?'
+        f'Hola! Soy NEXUS, el asistente virtual de {NEGOCIO["nombre"]}.\n\nElegia una opcion o escribime directamente:',
+        reply_markup=MENU
     )
-    
+
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     mensaje = update.message.text
@@ -111,6 +118,17 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if chat_id not in historiales:
         historiales[chat_id] = []
+
+    if mensaje == '🚨 Hablar con una persona':
+        await update.message.reply_text(
+            'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad. Un momento por favor.',
+            reply_markup=MENU
+        )
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f'ALERTA ESCALADO\n\nCliente: {nombre_cliente}\nQuiere hablar con una persona.\n\nResponder manualmente.'
+        )
+        return
 
     resultado = agente.invoke({
         'mensaje': mensaje,
@@ -124,7 +142,8 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if 'ESCALAR' in respuesta:
         await update.message.reply_text(
-            'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad. Un momento por favor.'
+            'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad.',
+            reply_markup=MENU
         )
         await context.bot.send_message(
             chat_id=ADMIN_ID,
@@ -135,11 +154,11 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     historiales[chat_id].append(HumanMessage(content=mensaje))
     historiales[chat_id].append(AIMessage(content=respuesta))
 
-    await update.message.reply_text(respuesta)
+    await update.message.reply_text(respuesta, reply_markup=MENU)
 
 app = ApplicationBuilder().token(os.getenv('TELEGRAM_TOKEN')).build()
 app.add_handler(CommandHandler('start', start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
 
-print('NEXUS Telegram bot iniciado con escalado a humano...')
-app.run_polling()    
+print('NEXUS Telegram bot con menu de botones iniciado...')
+app.run_polling()
