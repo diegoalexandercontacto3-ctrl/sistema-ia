@@ -6,39 +6,12 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_community.tools import DuckDuckGoSearchRun
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes, CommandHandler, ConversationHandler
 
 load_dotenv()
 
 ADMIN_ID = 8545681798
-
-NEGOCIO = {
-    'nombre': 'Mi Tienda Demo',
-    'rubro': 'comercio minorista',
-    'horarios': 'Lunes a Viernes 9-18hs, Sabados 9-13hs',
-    'telefono': '+54 11 1234-5678',
-    'politica_cambios': 'Cambios dentro de los 30 dias con ticket de compra',
-    'agente_nombre': 'NEXUS'
-}
-
-SISTEMA_BASE = f"""Sos {NEGOCIO['agente_nombre']}, el asistente virtual de {NEGOCIO['nombre']}.
-Trabajas para ayudar a los clientes de este {NEGOCIO['rubro']}.
-Informacion del negocio:
-- Horarios: {NEGOCIO['horarios']}
-- Telefono: {NEGOCIO['telefono']}
-- Politica de cambios: {NEGOCIO['politica_cambios']}
-Reglas:
-- Siempre responde en espanol, de forma amable y profesional
-- Si no sabes algo del negocio, di que lo vas a consultar y deja el telefono
-- Nunca inventes informacion sobre productos o precios
-- Si el cliente esta enojado, primero disculpate y luego ofrece soluciones
-- Si el cliente pide hablar con una persona humana o con un responsable, responde exactamente con la palabra: ESCALAR"""
-
-MENU = ReplyKeyboardMarkup([
-    [KeyboardButton('📋 Horarios'), KeyboardButton('🔄 Politica de cambios')],
-    [KeyboardButton('📞 Telefono'), KeyboardButton('💬 Hacer una consulta')],
-    [KeyboardButton('🚨 Hablar con una persona')]
-], resize_keyboard=True)
+CONFIGURANDO = 1
 
 buscador = DuckDuckGoSearchRun()
 llm = ChatGroq(model='llama-3.1-8b-instant', temperature=0.7)
@@ -49,6 +22,28 @@ class Estado(TypedDict):
     busqueda: str
     respuesta: str
     historial: List
+    sistema: str
+
+def get_sistema_base(negocio):
+    return f"""Sos NEXUS, el asistente virtual de {negocio}.
+Trabajas para ayudar a los clientes de este negocio.
+Informacion del negocio:
+- Horarios: Lunes a Viernes 9-18hs, Sabados 9-13hs
+- Telefono: +54 11 1234-5678
+- Politica de cambios: 30 dias con ticket de compra
+Reglas:
+- Siempre responde en espanol, de forma amable y profesional
+- Si no sabes algo del negocio, di que lo vas a consultar y deja el telefono
+- Nunca inventes informacion sobre productos o precios
+- Si el cliente esta enojado, primero disculpate y luego ofrece soluciones
+- Si el cliente pide hablar con una persona humana o con un responsable, responde exactamente con la palabra: ESCALAR"""
+
+def get_menu():
+    return ReplyKeyboardMarkup([
+        [KeyboardButton('📋 Horarios'), KeyboardButton('🔄 Politica de cambios')],
+        [KeyboardButton('📞 Telefono'), KeyboardButton('💬 Hacer una consulta')],
+        [KeyboardButton('🚨 Hablar con una persona')]
+    ], resize_keyboard=True)
 
 def clasificar(estado):
     prompt = [SystemMessage(content='Clasifica en UNA sola palabra: queja, busqueda o consulta.'),
@@ -61,21 +56,21 @@ def buscar_web(estado):
     return {'busqueda': resultado}
 
 def responder_consulta(estado):
-    mensajes = [SystemMessage(content=SISTEMA_BASE)]
+    mensajes = [SystemMessage(content=estado['sistema'])]
     mensajes += estado['historial']
     mensajes.append(HumanMessage(content=estado['mensaje']))
     resultado = llm.invoke(mensajes)
     return {'respuesta': resultado.content}
 
 def responder_con_busqueda(estado):
-    mensajes = [SystemMessage(content=SISTEMA_BASE)]
+    mensajes = [SystemMessage(content=estado['sistema'])]
     mensajes += estado['historial']
     mensajes.append(HumanMessage(content=f"Pregunta: {estado['mensaje']}\n\nInfo: {estado['busqueda']}"))
     resultado = llm.invoke(mensajes)
     return {'respuesta': resultado.content}
 
 def manejar_queja(estado):
-    mensajes = [SystemMessage(content=SISTEMA_BASE + '\nATENCION: El cliente esta presentando una queja.')]
+    mensajes = [SystemMessage(content=estado['sistema'] + '\nATENCION: El cliente esta presentando una queja.')]
     mensajes += estado['historial']
     mensajes.append(HumanMessage(content=estado['mensaje']))
     resultado = llm.invoke(mensajes)
@@ -103,13 +98,26 @@ grafo.add_edge('queja', END)
 agente = grafo.compile()
 
 historiales = {}
+negocios = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    historiales[update.effective_chat.id] = []
+    chat_id = update.effective_chat.id
+    historiales[chat_id] = []
+    negocios[chat_id] = None
     await update.message.reply_text(
-        f'Hola! Soy NEXUS, el asistente virtual de {NEGOCIO["nombre"]}.\n\nElegia una opcion o escribime directamente:',
-        reply_markup=MENU
+        'Hola! Soy NEXUS.\n\nPara personalizar tu experiencia: cual es el nombre de tu negocio?'
     )
+    return CONFIGURANDO
+
+async def recibir_negocio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    nombre_negocio = update.message.text
+    negocios[chat_id] = nombre_negocio
+    await update.message.reply_text(
+        f'Perfecto! Desde ahora soy el asistente virtual de {nombre_negocio}.\n\nElegia una opcion o escribime directamente:',
+        reply_markup=get_menu()
+    )
+    return ConversationHandler.END
 
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -119,14 +127,17 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id not in historiales:
         historiales[chat_id] = []
 
+    negocio = negocios.get(chat_id, 'Mi Tienda')
+    sistema = get_sistema_base(negocio)
+
     if mensaje == '🚨 Hablar con una persona':
         await update.message.reply_text(
-            'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad. Un momento por favor.',
-            reply_markup=MENU
+            'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad.',
+            reply_markup=get_menu()
         )
         await context.bot.send_message(
             chat_id=ADMIN_ID,
-            text=f'ALERTA ESCALADO\n\nCliente: {nombre_cliente}\nQuiere hablar con una persona.\n\nResponder manualmente.'
+            text=f'ALERTA ESCALADO\n\nNegocio: {negocio}\nCliente: {nombre_cliente}\nQuiere hablar con una persona.'
         )
         return
 
@@ -135,7 +146,8 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'tipo': '',
         'busqueda': '',
         'respuesta': '',
-        'historial': historiales[chat_id]
+        'historial': historiales[chat_id],
+        'sistema': sistema
     })
 
     respuesta = resultado['respuesta']
@@ -143,22 +155,28 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'ESCALAR' in respuesta:
         await update.message.reply_text(
             'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad.',
-            reply_markup=MENU
+            reply_markup=get_menu()
         )
         await context.bot.send_message(
             chat_id=ADMIN_ID,
-            text=f'ALERTA ESCALADO\n\nCliente: {nombre_cliente}\nMensaje: {mensaje}\n\nResponder manualmente.'
+            text=f'ALERTA ESCALADO\n\nNegocio: {negocio}\nCliente: {nombre_cliente}\nMensaje: {mensaje}'
         )
         return
 
     historiales[chat_id].append(HumanMessage(content=mensaje))
     historiales[chat_id].append(AIMessage(content=respuesta))
 
-    await update.message.reply_text(respuesta, reply_markup=MENU)
+    await update.message.reply_text(respuesta, reply_markup=get_menu())
+
+conv_handler = ConversationHandler(
+    entry_points=[CommandHandler('start', start)],
+    states={CONFIGURANDO: [MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_negocio)]},
+    fallbacks=[]
+)
 
 app = ApplicationBuilder().token(os.getenv('TELEGRAM_TOKEN')).build()
-app.add_handler(CommandHandler('start', start))
+app.add_handler(conv_handler)
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
 
-print('NEXUS Telegram bot con menu de botones iniciado...')
+print('NEXUS Telegram bot con personalidad configurable iniciado...')
 app.run_polling()
