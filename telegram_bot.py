@@ -147,20 +147,6 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     negocio = negocios.get(chat_id, 'Mi Tienda')
     sistema = get_sistema_base(negocio)
     
-    abierto, ahora = esta_abierto()
-    if not abierto:
-        dia = ahora.weekday()
-        if dia == 6:
-            cuando = 'el lunes a las 9:00hs'
-        elif dia == 5 and ahora.hour >= 13:
-            cuando = 'el lunes a las 9:00hs'
-        else:
-            cuando = 'mañana a las 9:00hs'
-        await update.message.reply_text(
-            f'Hola! En este momento estamos cerrados.\n\nNuestro horario es Lunes a Viernes 9-18hs y Sabados 9-13hs.\n\nTe esperamos {cuando}. Igualmente podés dejar tu consulta y te respondemos cuando abramos.',
-            reply_markup=get_menu()
-        )
-        return
     if mensaje == '🚨 Hablar con una persona':
         await update.message.reply_text(
             'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad.',
