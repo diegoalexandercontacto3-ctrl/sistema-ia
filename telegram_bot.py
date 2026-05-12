@@ -14,6 +14,8 @@ load_dotenv()
 
 ADMIN_ID = 8545681798
 CONFIGURANDO = 1
+CAPTURANDO_NOMBRE = 2
+CAPTURANDO_TELEFONO = 3
 
 buscador = DuckDuckGoSearchRun()
 llm = ChatGroq(model='llama-3.1-8b-instant', temperature=0.7)
@@ -114,6 +116,7 @@ agente = grafo.compile()
 
 historiales = {}
 negocios = {}
+leads = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -136,6 +139,39 @@ async def recibir_negocio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+async def pedir_nombre(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    leads[chat_id] = {}
+    await update.message.reply_text(
+        'Me alegra que quieras contactarnos. ¿Cuál es tu nombre?'
+    )
+    return CAPTURANDO_NOMBRE
+
+async def capturar_nombre(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    leads[chat_id]['nombre'] = update.message.text
+    await update.message.reply_text(
+        f'Gracias {update.message.text}! ¿Cuál es tu número de teléfono?'
+    )
+    return CAPTURANDO_TELEFONO
+
+async def capturar_telefono(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    leads[chat_id]['telefono'] = update.message.text
+    nombre = leads[chat_id]['nombre']
+    telefono = update.message.text
+    negocio = negocios.get(chat_id, 'Sin negocio')
+
+    await update.message.reply_text(
+        f'Perfecto {nombre}! Un responsable te va a contactar a la brevedad al {telefono}.',
+        reply_markup=get_menu()
+    )
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f'NUEVO LEAD CAPTURADO\n\nNegocio: {negocio}\nNombre: {nombre}\nTeléfono: {telefono}\n\nContactar a la brevedad.'
+    )
+    return ConversationHandler.END
+
 async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     mensaje = update.message.text
@@ -149,14 +185,35 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if mensaje == '🚨 Hablar con una persona':
         await update.message.reply_text(
-            'Entendido! Voy a avisar a un responsable para que te contacte a la brevedad.',
-            reply_markup=get_menu()
+            'Me alegra que quieras contactarnos. ¿Cuál es tu nombre?'
         )
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f'ALERTA ESCALADO\n\nNegocio: {negocio}\nCliente: {nombre_cliente}\nQuiere hablar con una persona.'
-        )
+        leads[chat_id] = {}
+        context.user_data['capturando'] = True
+        context.user_data['paso'] = 'nombre'
         return
+
+    if context.user_data.get('capturando'):
+        if context.user_data.get('paso') == 'nombre':
+            leads[chat_id]['nombre'] = mensaje
+            context.user_data['paso'] = 'telefono'
+            await update.message.reply_text(
+                f'Gracias {mensaje}! ¿Cuál es tu número de teléfono?'
+            )
+            return
+        elif context.user_data.get('paso') == 'telefono':
+            leads[chat_id]['telefono'] = mensaje
+            nombre = leads[chat_id]['nombre']
+            negocio = negocios.get(chat_id, 'Sin negocio')
+            context.user_data['capturando'] = False
+            await update.message.reply_text(
+                f'Perfecto {nombre}! Un responsable te va a contactar a la brevedad.',
+                reply_markup=get_menu()
+            )
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f'NUEVO LEAD\n\nNegocio: {negocio}\nNombre: {nombre}\nTeléfono: {mensaje}\n\nContactar a la brevedad.'
+            )
+            return
 
     resultado = agente.invoke({
         'mensaje': mensaje,
