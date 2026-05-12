@@ -10,12 +10,12 @@ import streamlit as st
 load_dotenv()
 
 NEGOCIO = {
-    "nombre": "Mi Tienda Demo",
-    "rubro": "comercio minorista",
-    "horarios": "Lunes a Viernes 9-18hs, Sábados 9-13hs",
-    "telefono": "+54 11 1234-5678",
-    "politica_cambios": "Cambios dentro de los 30 días con ticket de compra",
-    "agente_nombre": "NEXUS"
+    'nombre': 'DAL — Creamos Agentes de IA',
+    'rubro': 'desarrollo de agentes de inteligencia artificial',
+    'horarios': 'Lunes a Viernes 9-18hs',
+    'telefono': '+54 11 1234-5678',
+    'politica_cambios': 'Revisamos cada proyecto y ofrecemos soporte post-entrega',
+    'agente_nombre': 'DAL'
 }
 
 SISTEMA_BASE = f"""Sos {NEGOCIO['agente_nombre']}, el asistente virtual de {NEGOCIO['nombre']}.
@@ -32,8 +32,9 @@ Reglas:
 - Nunca inventés información sobre productos o precios
 - Si el cliente está enojado, primero disculpate y luego ofrecé soluciones"""
 
-st.set_page_config(page_title=f"{NEGOCIO['agente_nombre']} — Asistente Virtual", page_icon="🤖", layout="centered")
-st.title(f"🤖 {NEGOCIO['agente_nombre']} — Asistente de {NEGOCIO['nombre']}")
+st.set_page_config(page_title="DAL — Creamos Agentes de IA", page_icon="🤖", layout='centered')
+st.image('dal_logo.jpg', width=300)
+st.title("DAL — Creamos Agentes de IA")
 st.caption(f"Asistente virtual especializado | {NEGOCIO['horarios']}")
 
 col1, col2 = st.columns([6, 1])
