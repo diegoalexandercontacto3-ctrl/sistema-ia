@@ -249,6 +249,18 @@ conv_handler = ConversationHandler(
 )
 
 app = ApplicationBuilder().token(os.getenv('TELEGRAM_TOKEN')).build()
+
+async def ayuda(update, context):
+    await update.message.reply_text(
+        "🤖 *DAL — Agente de IA*\n\n"
+        "Estos son los comandos disponibles:\n\n"
+        "*/start* — Reiniciar el bot y configurar tu negocio\n"
+        "*/ayuda* — Ver esta guía\n\n"
+        "También podés usar los botones del menú o escribirme directamente cualquier consulta.",
+        parse_mode='Markdown'
+    )
+
+app.add_handler(CommandHandler('ayuda', ayuda))
 app.add_handler(conv_handler)
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, responder))
 
