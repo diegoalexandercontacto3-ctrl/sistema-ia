@@ -9,47 +9,21 @@ import streamlit as st
 
 load_dotenv()
 
-NEGOCIO = {
-    'nombre': 'DAL — Creamos Agentes de IA',
-    'rubro': 'desarrollo de agentes de inteligencia artificial',
-    'horarios': 'Lunes a Viernes 9-18hs',
-    'telefono': '+54 11 1234-5678',
-    'politica_cambios': 'Revisamos cada proyecto y ofrecemos soporte post-entrega',
-    'agente_nombre': 'DAL'
-}
-
-SISTEMA_BASE = f"""Sos {NEGOCIO['agente_nombre']}, el asistente virtual de {NEGOCIO['nombre']}.
-Trabajás para ayudar a los clientes de este {NEGOCIO['rubro']}.
-
-Información del negocio:
-- Horarios: {NEGOCIO['horarios']}
-- Teléfono: {NEGOCIO['telefono']}
-- Política de cambios: {NEGOCIO['politica_cambios']}
-
-Reglas:
-- Siempre respondé en español, de forma amable y profesional
-- Si no sabés algo del negocio, decí que lo vas a consultar y dejá el teléfono
-- Nunca inventés información sobre productos o precios
-- Si el cliente está enojado, primero disculpate y luego ofrecé soluciones"""
-
-st.set_page_config(page_title="DAL — Creamos Agentes de IA", page_icon="🤖", layout='centered')
-st.image('dal_logo.jpg', width=300)
-st.title("DAL — Creamos Agentes de IA")
-st.caption(f"Asistente virtual especializado | {NEGOCIO['horarios']}")
-
-col1, col2 = st.columns([6, 1])
-with col1:
-    if len(st.session_state.get('historial_visual', [])) > 0:
-        total = len(st.session_state.historial_visual) // 2
-        st.caption(f"💬 {total} mensaje{'s' if total != 1 else ''}")
-with col2:
-    if st.button("🗑️ Nueva"):
-        st.session_state.historial_visual = []
-        st.session_state.historial_llm = []
-        st.rerun()
-
 buscador = DuckDuckGoSearchRun()
-llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.7)
+llm = ChatGroq(model='llama-3.1-8b-instant', temperature=0.7)
+
+def get_sistema_base(negocio):
+    return f"""Sos DAL, el asistente virtual de {negocio}. Trabajas para ayudar a los clientes de este negocio.
+Informacion del negocio:
+- Horarios: Lunes a Viernes 9-18hs, Sabados 9-13hs
+- Telefono: +54 11 1234-5678
+- Politica de cambios: 30 dias con ticket de compra
+Reglas:
+- Siempre responde en espanol, de forma amable y profesional
+- Si no sabes algo del negocio, di que lo vas a consultar y deja el telefono
+- Nunca inventes informacion sobre productos o precios
+- Si el cliente esta enojado, primero disculpate y luego ofrece soluciones
+- Si el cliente pide hablar con una persona humana, responde exactamente: ESCALAR"""
 
 class Estado(TypedDict):
     mensaje: str
@@ -57,97 +31,135 @@ class Estado(TypedDict):
     busqueda: str
     respuesta: str
     historial: List
+    sistema: str
 
-def clasificar(estado: Estado):
-    prompt = [SystemMessage(content="Clasificá en UNA sola palabra: queja, busqueda o consulta."),
+def clasificar(estado):
+    prompt = [SystemMessage(content='Clasifica en UNA sola palabra: queja, busqueda o consulta.'),
               HumanMessage(content=estado['mensaje'])]
     resultado = llm.invoke(prompt)
     return {'tipo': resultado.content.strip().lower()}
 
-def buscar_web(estado: Estado):
+def buscar_web(estado):
     resultado = buscador.run(estado['mensaje'])
     return {'busqueda': resultado}
 
-def responder_consulta(estado: Estado):
-    mensajes = [SystemMessage(content=SISTEMA_BASE)]
+def responder_consulta(estado):
+    mensajes = [SystemMessage(content=estado['sistema'])]
     mensajes += estado['historial']
     mensajes.append(HumanMessage(content=estado['mensaje']))
     resultado = llm.invoke(mensajes)
     return {'respuesta': resultado.content}
 
-def responder_con_busqueda(estado: Estado):
-    mensajes = [SystemMessage(content=SISTEMA_BASE)]
+def responder_con_busqueda(estado):
+    mensajes = [SystemMessage(content=estado['sistema'])]
     mensajes += estado['historial']
-    mensajes.append(HumanMessage(content=f"Pregunta: {estado['mensaje']}\n\nInfo adicional: {estado['busqueda']}"))
+    mensajes.append(HumanMessage(content=f"Pregunta: {estado['mensaje']}\n\nInfo: {estado['busqueda']}"))
     resultado = llm.invoke(mensajes)
     return {'respuesta': resultado.content}
 
-def manejar_queja(estado: Estado):
-    mensajes = [SystemMessage(content=SISTEMA_BASE + "\nATENCIÓN: El cliente está presentando una queja. Priorizá la empatía y la solución.")]
+def manejar_queja(estado):
+    mensajes = [SystemMessage(content=estado['sistema'] + '\nATENCION: El cliente esta presentando una queja.')]
     mensajes += estado['historial']
     mensajes.append(HumanMessage(content=estado['mensaje']))
     resultado = llm.invoke(mensajes)
     return {'respuesta': resultado.content}
 
-def decidir(estado: Estado):
+def decidir(estado):
     tipo = estado['tipo']
     if 'queja' in tipo: return 'queja'
     elif 'busqueda' in tipo: return 'buscar'
     else: return 'consulta'
 
-@st.cache_resource
-def crear_agente():
-    grafo = StateGraph(Estado)
-    grafo.add_node('clasificar', clasificar)
-    grafo.add_node('buscar', buscar_web)
-    grafo.add_node('responder_busqueda', responder_con_busqueda)
-    grafo.add_node('consulta', responder_consulta)
-    grafo.add_node('queja', manejar_queja)
-    grafo.set_entry_point('clasificar')
-    grafo.add_conditional_edges('clasificar', decidir,
-        {'queja': 'queja', 'buscar': 'buscar', 'consulta': 'consulta'})
-    grafo.add_edge('buscar', 'responder_busqueda')
-    grafo.add_edge('responder_busqueda', END)
-    grafo.add_edge('consulta', END)
-    grafo.add_edge('queja', END)
-    return grafo.compile()
+grafo = StateGraph(Estado)
+grafo.add_node('clasificar', clasificar)
+grafo.add_node('buscar', buscar_web)
+grafo.add_node('responder_busqueda', responder_con_busqueda)
+grafo.add_node('consulta', responder_consulta)
+grafo.add_node('queja', manejar_queja)
+grafo.set_entry_point('clasificar')
+grafo.add_conditional_edges('clasificar', decidir,
+    {'queja': 'queja', 'buscar': 'buscar', 'consulta': 'consulta'})
+grafo.add_edge('buscar', 'responder_busqueda')
+grafo.add_edge('responder_busqueda', END)
+grafo.add_edge('consulta', END)
+grafo.add_edge('queja', END)
+agente = grafo.compile()
 
-agente = crear_agente()
+# ── STREAMLIT UI ──
+st.set_page_config(page_title='DAL — Agente de IA', page_icon='🤖')
 
-if 'historial_visual' not in st.session_state:
-    st.session_state.historial_visual = []
-if 'historial_llm' not in st.session_state:
-    st.session_state.historial_llm = []
+col1, col2 = st.columns([1, 4])
+with col1:
+    st.image('dal_logo.jpg', width=80)
+with col2:
+    st.title('DAL — Creamos Agentes de IA')
 
-for mensaje in st.session_state.historial_visual:
-    with st.chat_message(mensaje['rol']):
-        st.write(mensaje['texto'])
+if 'negocio' not in st.session_state:
+    st.session_state.negocio = None
+if 'historial' not in st.session_state:
+    st.session_state.historial = []
+if 'lead' not in st.session_state:
+    st.session_state.lead = {}
+if 'capturando' not in st.session_state:
+    st.session_state.capturando = None
+if 'escalado' not in st.session_state:
+    st.session_state.escalado = False
+if not st.session_state.negocio:
+    st.info('Para personalizar el asistente, ingresa el nombre de tu negocio.')
+    negocio_input = st.text_input('Nombre del negocio:')
+    if st.button('Confirmar') and negocio_input:
+        st.session_state.negocio = negocio_input
+        st.rerun()
+else:
+    st.caption(f'Asistente configurado para: {st.session_state.negocio}')
 
-if entrada := st.chat_input('¿En qué puedo ayudarte?'):
-    with st.chat_message('user'):
-        st.write(entrada)
-    st.session_state.historial_visual.append({'rol': 'user', 'texto': entrada})
+    for msg in st.session_state.historial:
+        role = 'user' if isinstance(msg, HumanMessage) else 'assistant'
+        with st.chat_message(role):
+            st.write(msg.content)
 
-    with st.chat_message('assistant'):
-        with st.spinner('🧠 Analizando tu consulta...'):
+    if st.session_state.escalado:
+        st.warning('Un responsable del negocio te va a contactar a la brevedad.')
+
+    if st.session_state.capturando == 'nombre':
+        nombre = st.text_input('¿Cuál es tu nombre?')
+        if st.button('Enviar nombre') and nombre:
+            st.session_state.lead['nombre'] = nombre
+            st.session_state.capturando = 'telefono'
+            st.rerun()
+
+    elif st.session_state.capturando == 'telefono':
+        telefono = st.text_input('¿Cuál es tu número de teléfono?')
+        if st.button('Enviar teléfono') and telefono:
+            st.session_state.lead['telefono'] = telefono
+            st.session_state.capturando = None
+            st.session_state.escalado = True
+            st.rerun()
+
+    else:
+        mensaje = st.chat_input('Escribí tu consulta...')
+        if mensaje:
+            sistema = get_sistema_base(st.session_state.negocio)
             resultado = agente.invoke({
-                'mensaje': entrada,
-                'tipo': '',
-                'busqueda': '',
-                'respuesta': '',
-                'historial': st.session_state.historial_llm
+                'mensaje': mensaje, 'tipo': '', 'busqueda': '', 'respuesta': '',
+                'historial': st.session_state.historial, 'sistema': sistema
             })
-        respuesta = resultado['respuesta']
-        tipo = resultado['tipo']
-        st.write(respuesta)
+            respuesta = resultado['respuesta']
 
-        if 'queja' in tipo:
-            st.caption("⚠️ Queja detectada — respuesta empática activada")
-        elif 'busqueda' in tipo:
-            st.caption("🔍 Búsqueda web realizada")
-        else:
-            st.caption("💬 Consulta respondida")
+            st.session_state.historial.append(HumanMessage(content=mensaje))
 
-    st.session_state.historial_visual.append({'rol': 'assistant', 'texto': respuesta})
-    st.session_state.historial_llm.append(HumanMessage(content=entrada))
-    st.session_state.historial_llm.append(AIMessage(content=respuesta))
+            if 'ESCALAR' in respuesta:
+                st.session_state.historial.append(AIMessage(content='Entendido, voy a avisar a un responsable para que te contacte.'))
+                st.session_state.capturando = 'nombre'
+            else:
+                st.session_state.historial.append(AIMessage(content=respuesta))
+
+            st.rerun()
+
+    if st.button('Nueva conversación'):
+        st.session_state.historial = []
+        st.session_state.negocio = None
+        st.session_state.lead = {}
+        st.session_state.capturando = None
+        st.session_state.escalado = False
+        st.rerun()    
