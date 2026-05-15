@@ -6,3 +6,4 @@ duckduckgo-search
 ddgs
 python-dotenv
 streamlit
+flask
