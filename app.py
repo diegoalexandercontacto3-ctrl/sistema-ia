@@ -104,6 +104,8 @@ if 'capturando' not in st.session_state:
     st.session_state.capturando = None
 if 'escalado' not in st.session_state:
     st.session_state.escalado = False
+if 'tipo_consulta' not in st.session_state:
+    st.session_state.tipo_consulta = None    
 if not st.session_state.negocio:
     st.info('Para personalizar el asistente, ingresa el nombre de tu negocio.')
     negocio_input = st.text_input('Nombre del negocio:')
@@ -112,6 +114,15 @@ if not st.session_state.negocio:
         st.rerun()
 else:
     st.caption(f'Asistente configurado para: {st.session_state.negocio}')
+
+    if st.session_state.tipo_consulta:
+        tipo = st.session_state.tipo_consulta
+        if 'queja' in tipo:
+            st.error('🔴 Queja detectada')
+        elif 'busqueda' in tipo:
+            st.info('🔵 Búsqueda web')
+        else:
+            st.success('🟢 Consulta general')
 
     for msg in st.session_state.historial:
         role = 'user' if isinstance(msg, HumanMessage) else 'assistant'
@@ -152,6 +163,7 @@ else:
                 st.session_state.historial.append(AIMessage(content='Entendido, voy a avisar a un responsable para que te contacte.'))
                 st.session_state.capturando = 'nombre'
             else:
+                st.session_state.tipo_consulta = resultado['tipo']
                 st.session_state.historial.append(AIMessage(content=respuesta))
 
             st.rerun()
